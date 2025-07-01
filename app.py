@@ -4,7 +4,7 @@ from pathlib import Path
 
 st.set_page_config(page_title="Learn ፊደል", layout="wide")
 
-# Initialize session state
+# Session state
 if "trace_letter" not in st.session_state:
     st.session_state["trace_letter"] = "ሀ"
 if "points" not in st.session_state:
@@ -12,11 +12,11 @@ if "points" not in st.session_state:
 if "clear_count" not in st.session_state:
     st.session_state["clear_count"] = 0
 
-# Title and points display
-st.markdown("<h1 style='font-size: 3rem; margin-bottom: 0.5rem;'>🏫 Jimmy Academy</h1>", unsafe_allow_html=True)
+# Title
+st.markdown("<h1 style='font-size: 3rem;'>🏫 Jimmy Academy</h1>", unsafe_allow_html=True)
 st.markdown(f"<div style='text-align:right; font-size:1.2rem;'>⭐ Points: <strong>{st.session_state['points']}</strong></div>", unsafe_allow_html=True)
 
-# Style
+# CSS
 st.markdown("""
 <style>
 button[kind="secondary"] {
@@ -26,16 +26,13 @@ button[kind="secondary"] {
     border-radius: 6px !important;
     padding: 4px 6px !important;
 }
-audio {
-    display: none;
-}
 </style>
 """, unsafe_allow_html=True)
 
 left, right = st.columns([2.3, 1], gap="small")
 
 # ----------------------------------
-# 🎯 LEFT: Soundboard + Points
+# 🎯 LEFT: Soundboard
 # ----------------------------------
 with left:
     st.subheader("🎓 አማርኛ ፊደል Soundboard")
@@ -83,17 +80,17 @@ with left:
                 if Path(audio_path).exists():
                     audio_b64 = base64.b64encode(Path(audio_path).read_bytes()).decode("utf-8")
                     st.components.v1.html(f"""
-                        <audio autoplay>
-                          <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
-                        </audio>
+                    <script>
+                      const audio = new Audio("data:audio/mp3;base64,{audio_b64}");
+                      audio.play();
+                    </script>
                     """, height=0)
 
-    # 🎉 Celebration every 5 points
     if st.session_state["points"] > 0 and st.session_state["points"] % 5 == 0:
         st.success("🎉 Great job! You’ve earned more stars!")
 
 # ----------------------------------
-# ✍️ RIGHT: Drawing Canvas + Clear Bonus
+# ✍️ RIGHT: Canvas Drawing
 # ----------------------------------
 with right:
     st.subheader("✍️ ፊደል Writing Practice")
@@ -103,39 +100,63 @@ with right:
     <style>
       .canvas-wrapper {{
         position: relative;
-        width: 400px;
-        height: 400px;
+        width: 100%;
+        max-width: 400px;
+        aspect-ratio: 1 / 1;
+        margin: auto;
       }}
       .canvas-wrapper canvas {{
         position: absolute;
         top: 0;
         left: 0;
+        width: 100%;
+        height: 100%;
+      }}
+      .button-row {{
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 12px;
+      }}
+      .button-row button {{
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 1rem;
+        border: 1px solid #ccc;
+        background-color: #f0f0f0;
       }}
     </style>
 
     <div class="canvas-wrapper">
-      <canvas id="trace" width="400" height="400"
-        style="z-index: 0; pointer-events: none;">
-      </canvas>
-      <canvas id="draw" width="400" height="400"
-        style="z-index: 1; border:1px solid #ccc; border-radius:8px; background:transparent;">
-      </canvas>
+      <canvas id="trace"></canvas>
+      <canvas id="draw" style="border:1px solid #ccc; border-radius:8px; background:transparent;"></canvas>
     </div>
-    <br/>
-    <button onclick="clearDrawAndReward()" style="margin:4px; padding:6px 12px; border-radius:4px;">🧼 Clear Writing</button>
-    <button onclick="clearTrace()" style="margin:4px; padding:6px 12px; border-radius:4px;">🗑️ Clear Tracing</button>
+
+    <div class="button-row">
+      <button onclick="clearDrawAndReward()">🧼 Clear Writing</button>
+      <button onclick="clearTrace()">🗑️ Clear Tracing</button>
+    </div>
 
     <script>
+      const wrapper = document.querySelector('.canvas-wrapper');
+      const size = wrapper.offsetWidth;
+
       const trace = document.getElementById('trace');
+      const draw = document.getElementById('draw');
+
+      trace.width = size;
+      trace.height = size;
+      draw.width = size;
+      draw.height = size;
+
       const traceCtx = trace.getContext('2d');
-      traceCtx.clearRect(0, 0, trace.width, trace.height);
-      traceCtx.font = '260px Noto Sans Ethiopic';
+      traceCtx.clearRect(0, 0, size, size);
+      traceCtx.font = size * 0.65 + 'px Noto Sans Ethiopic';
       traceCtx.fillStyle = 'rgba(150,150,150,0.2)';
       traceCtx.textAlign = 'center';
       traceCtx.textBaseline = 'middle';
-      traceCtx.fillText("{trace_letter}", 200, 200);
+      traceCtx.fillText("{trace_letter}", size / 2, size / 2);
 
-      const draw = document.getElementById('draw');
       const ctx = draw.getContext('2d');
       let drawing = false;
 
@@ -169,7 +190,7 @@ with right:
       draw.addEventListener('touchend', () => {{ drawing = false; ctx.beginPath(); }});
 
       function clearDrawAndReward() {{
-        fetch('/?clear=true');
+        fetch(window.location.href + "?clear=true");
         ctx.clearRect(0, 0, draw.width, draw.height);
       }}
 
@@ -179,11 +200,12 @@ with right:
     </script>
     """
 
-    st.components.v1.html(canvas_html, height=480)
+    st.components.v1.html(canvas_html, height=520)
 
-# Reward point on clear (once per session * 5 times)
-if "clear" in st.query_params:
-    if st.session_state["clear_count"] < 5:
-        st.session_state["points"] += 1
-        st.session_state["clear_count"] += 1
-    st.query_params.clear()  # Remove ?clear=true from URL
+    # Handle point reward on clear
+    if "clear" in st.query_params:
+        if st.session_state["clear_count"] < 5:
+            st.session_state["points"] += 1
+            st.session_state["clear_count"] += 1
+        st.query_params.clear()
+        st.rerun()
