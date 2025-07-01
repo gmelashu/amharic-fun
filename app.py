@@ -1,14 +1,22 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import base64
 from pathlib import Path
 
 st.set_page_config(page_title="Learn ፊደል", layout="wide")
 
-# 🏫 App Title
-st.markdown("<h1 style='font-size: 3rem; margin-bottom: 0.5rem;'>🏫 Jimmy Academy</h1>", unsafe_allow_html=True)
+# Initialize session state
+if "trace_letter" not in st.session_state:
+    st.session_state["trace_letter"] = "ሀ"
+if "points" not in st.session_state:
+    st.session_state["points"] = 0
+if "clear_count" not in st.session_state:
+    st.session_state["clear_count"] = 0
 
-# 🎨 Style letter buttons
+# Title and points display
+st.markdown("<h1 style='font-size: 3rem; margin-bottom: 0.5rem;'>🏫 Jimmy Academy</h1>", unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:right; font-size:1.2rem;'>⭐ Points: <strong>{st.session_state['points']}</strong></div>", unsafe_allow_html=True)
+
+# Style
 st.markdown("""
 <style>
 button[kind="secondary"] {
@@ -18,14 +26,16 @@ button[kind="secondary"] {
     border-radius: 6px !important;
     padding: 4px 6px !important;
 }
+audio {
+    display: none;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# Layout split
 left, right = st.columns([2.3, 1], gap="small")
 
 # ----------------------------------
-# 🎯 LEFT: Soundboard
+# 🎯 LEFT: Soundboard + Points
 # ----------------------------------
 with left:
     st.subheader("🎓 አማርኛ ፊደል Soundboard")
@@ -63,32 +73,31 @@ with left:
         ['ፐ','ፑ','ፒ','ፓ','ፔ','ፕ','ፖ']
     ]
 
-    def get_base64_audio(letter):
-        path = f"audio/{letter}.mp3"
-        if not Path(path).exists():
-            return None
-        return base64.b64encode(Path(path).read_bytes()).decode()
-
     for row in letter_rows:
         cols = st.columns(len(row))
         for i, letter in enumerate(row):
             if cols[i].button(letter, use_container_width=True):
-                audio_b64 = get_base64_audio(letter)
-                if audio_b64:
-                    st.session_state["trace_letter"] = letter
-                    components.html(f"""
-                        <script>
-                        var audio = new Audio('data:audio/mp3;base64,{audio_b64}');
-                        audio.play();
-                        </script>
+                st.session_state["trace_letter"] = letter
+                st.session_state["points"] += 1
+                audio_path = f"audio/{letter}.mp3"
+                if Path(audio_path).exists():
+                    audio_b64 = base64.b64encode(Path(audio_path).read_bytes()).decode("utf-8")
+                    st.components.v1.html(f"""
+                        <audio autoplay>
+                          <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+                        </audio>
                     """, height=0)
 
+    # 🎉 Celebration every 5 points
+    if st.session_state["points"] > 0 and st.session_state["points"] % 5 == 0:
+        st.success("🎉 Great job! You’ve earned more stars!")
+
 # ----------------------------------
-# ✍️ RIGHT: Drawing Canvas
+# ✍️ RIGHT: Drawing Canvas + Clear Bonus
 # ----------------------------------
 with right:
     st.subheader("✍️ ፊደል Writing Practice")
-    trace_letter = st.session_state.get("trace_letter", "ሀ")
+    trace_letter = st.session_state["trace_letter"]
 
     canvas_html = f"""
     <style>
@@ -113,11 +122,10 @@ with right:
       </canvas>
     </div>
     <br/>
-    <button onclick="clearDraw()" style="margin:4px; padding:6px 12px; border-radius:4px;">🧼 Clear Writing</button>
+    <button onclick="clearDrawAndReward()" style="margin:4px; padding:6px 12px; border-radius:4px;">🧼 Clear Writing</button>
     <button onclick="clearTrace()" style="margin:4px; padding:6px 12px; border-radius:4px;">🗑️ Clear Tracing</button>
 
     <script>
-      // Draw trace letter
       const trace = document.getElementById('trace');
       const traceCtx = trace.getContext('2d');
       traceCtx.clearRect(0, 0, trace.width, trace.height);
@@ -127,7 +135,6 @@ with right:
       traceCtx.textBaseline = 'middle';
       traceCtx.fillText("{trace_letter}", 200, 200);
 
-      // Draw layer
       const draw = document.getElementById('draw');
       const ctx = draw.getContext('2d');
       let drawing = false;
@@ -161,7 +168,8 @@ with right:
       draw.addEventListener('touchmove', e => {{ drawLine(e); e.preventDefault(); }}, {{ passive: false }});
       draw.addEventListener('touchend', () => {{ drawing = false; ctx.beginPath(); }});
 
-      function clearDraw() {{
+      function clearDrawAndReward() {{
+        fetch('/?clear=true');
         ctx.clearRect(0, 0, draw.width, draw.height);
       }}
 
@@ -171,4 +179,11 @@ with right:
     </script>
     """
 
-    components.html(canvas_html, height=480)
+    st.components.v1.html(canvas_html, height=480)
+
+# Reward point on clear (once per session * 5 times)
+if "clear" in st.query_params:
+    if st.session_state["clear_count"] < 5:
+        st.session_state["points"] += 1
+        st.session_state["clear_count"] += 1
+    st.query_params.clear()  # Remove ?clear=true from URL
